@@ -1,15 +1,17 @@
 import { useState, useRef } from 'react';
 import { useDataContext } from '../../context/DataContext';
-import { ArrowRight, ArrowLeft, Search, Upload } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Search, Upload, UserPlus, X } from 'lucide-react';
 import Papa from 'papaparse';
 
 const AssignStudents = () => {
   const { courses, students, faculties, addStudent } = useDataContext();
   const [selectedCourse, setSelectedCourse] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [assignedStudents, setAssignedStudents] = useState<{[courseId: string]: string[]}>({});
-  const [assignedFaculty, setAssignedFaculty] = useState<{[courseId: string]: string[]}>({});
+  const [assignedStudents, setAssignedStudents] = useState<{[facultyId: string]: string[]}>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedFaculty, setSelectedFaculty] = useState('');
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -42,7 +44,6 @@ const AssignStudents = () => {
             }
           });
           
-          // Reset file input
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
           }
@@ -60,40 +61,30 @@ const AssignStudents = () => {
     student.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleAssignStudent = (studentId: string) => {
-    if (selectedCourse) {
+  const enrolledStudents = selectedCourse
+    ? students.filter(student => student.courses.includes(selectedCourse))
+    : [];
+
+  const handleAssignToFaculty = () => {
+    if (selectedFaculty && selectedStudents.length > 0) {
       setAssignedStudents(prev => ({
         ...prev,
-        [selectedCourse]: [...(prev[selectedCourse] || []), studentId]
+        [selectedFaculty]: [...(prev[selectedFaculty] || []), ...selectedStudents]
       }));
+      setSelectedStudents([]);
+      setShowAssignModal(false);
     }
   };
 
-  const handleUnassignStudent = (studentId: string) => {
-    if (selectedCourse) {
-      setAssignedStudents(prev => ({
-        ...prev,
-        [selectedCourse]: prev[selectedCourse].filter(id => id !== studentId)
-      }));
-    }
+  const handleUnassignFromFaculty = (facultyId: string, studentId: string) => {
+    setAssignedStudents(prev => ({
+      ...prev,
+      [facultyId]: prev[facultyId].filter(id => id !== studentId)
+    }));
   };
 
-  const handleAssignFaculty = (facultyId: string) => {
-    if (selectedCourse) {
-      setAssignedFaculty(prev => ({
-        ...prev,
-        [selectedCourse]: [...(prev[selectedCourse] || []), facultyId]
-      }));
-    }
-  };
-
-  const handleUnassignFaculty = (facultyId: string) => {
-    if (selectedCourse) {
-      setAssignedFaculty(prev => ({
-        ...prev,
-        [selectedCourse]: prev[selectedCourse].filter(id => id !== facultyId)
-      }));
-    }
+  const getStudentsByFaculty = (facultyId: string) => {
+    return assignedStudents[facultyId] || [];
   };
 
   return (
@@ -164,89 +155,130 @@ const AssignStudents = () => {
 
         {selectedCourse && (
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Available Students</h3>
-                <div className="space-y-2">
-                  {filteredStudents
-                    .filter(student => !assignedStudents[selectedCourse]?.includes(student.id))
-                    .map(student => (
-                      <div key={student.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <p className="font-medium">{student.name}</p>
-                          <p className="text-sm text-gray-500">{student.id}</p>
-                        </div>
-                        <button
-                          onClick={() => handleAssignStudent(student.id)}
-                          className="p-2 text-blue-600 hover:text-blue-800"
-                        >
-                          <ArrowRight className="h-5 w-5" />
-                        </button>
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Assigned Students</h3>
-                <div className="space-y-2">
-                  {assignedStudents[selectedCourse]?.map(studentId => {
-                    const student = students.find(s => s.id === studentId);
-                    if (!student) return null;
-                    
-                    return (
-                      <div key={student.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <p className="font-medium">{student.name}</p>
-                          <p className="text-sm text-gray-500">{student.id}</p>
-                        </div>
-                        <button
-                          onClick={() => handleUnassignStudent(student.id)}
-                          className="p-2 text-red-600 hover:text-red-800"
-                        >
-                          <ArrowLeft className="h-5 w-5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-medium text-gray-900">Enrolled Students</h2>
+              <button
+                onClick={() => setShowAssignModal(true)}
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                disabled={enrolledStudents.length === 0}
+              >
+                <UserPlus className="h-5 w-5 mr-1" />
+                Assign to Faculty
+              </button>
             </div>
 
-            <div className="mt-8">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Assign Faculty</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {faculties.map(faculty => (
-                  <div key={faculty.id} className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{faculty.name}</p>
-                        <p className="text-sm text-gray-500">{faculty.department}</p>
-                      </div>
-                      <button
-                        onClick={() => 
-                          assignedFaculty[selectedCourse]?.includes(faculty.id)
-                            ? handleUnassignFaculty(faculty.id)
-                            : handleAssignFaculty(faculty.id)
-                        }
-                        className={`px-3 py-1 rounded-full text-sm ${
-                          assignedFaculty[selectedCourse]?.includes(faculty.id)
-                            ? 'bg-red-100 text-red-800 hover:bg-red-200'
-                            : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                        }`}
-                      >
-                        {assignedFaculty[selectedCourse]?.includes(faculty.id)
-                          ? 'Unassign'
-                          : 'Assign'}
-                      </button>
+            <div className="space-y-6">
+              {faculties.map(faculty => {
+                const assignedStudentIds = getStudentsByFaculty(faculty.id);
+                const assignedStudentDetails = students.filter(student => 
+                  assignedStudentIds.includes(student.id)
+                );
+
+                return (
+                  <div key={faculty.id} className="border rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      {faculty.name} - {assignedStudentDetails.length} students
+                    </h3>
+                    <div className="space-y-2">
+                      {assignedStudentDetails.map(student => (
+                        <div key={student.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
+                          <div>
+                            <p className="font-medium">{student.name}</p>
+                            <p className="text-sm text-gray-500">{student.id}</p>
+                          </div>
+                          <button
+                            onClick={() => handleUnassignFromFaculty(faculty.id, student.id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <X className="h-5 w-5" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
         )}
       </div>
+
+      {/* Assign to Faculty Modal */}
+      {showAssignModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+          <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full m-4">
+            <div className="p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Assign Students to Faculty</h3>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Faculty
+                </label>
+                <select
+                  className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  value={selectedFaculty}
+                  onChange={(e) => setSelectedFaculty(e.target.value)}
+                >
+                  <option value="">Choose a faculty member</option>
+                  {faculties.map(faculty => (
+                    <option key={faculty.id} value={faculty.id}>
+                      {faculty.name} - {faculty.department}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Students
+                </label>
+                <div className="max-h-60 overflow-y-auto border rounded-md">
+                  {enrolledStudents.map(student => (
+                    <div key={student.id} className="flex items-center p-3 hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={selectedStudents.includes(student.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedStudents([...selectedStudents, student.id]);
+                          } else {
+                            setSelectedStudents(selectedStudents.filter(id => id !== student.id));
+                          }
+                        }}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <div className="ml-3">
+                        <p className="font-medium">{student.name}</p>
+                        <p className="text-sm text-gray-500">{student.id}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowAssignModal(false);
+                    setSelectedStudents([]);
+                    setSelectedFaculty('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAssignToFaculty}
+                  disabled={!selectedFaculty || selectedStudents.length === 0}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+                >
+                  Assign Students
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
