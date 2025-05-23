@@ -9,8 +9,7 @@ export default defineConfig({
       'react',
       'react-dom',
       'lucide-react'
-    ],
-    force: true
+    ]
   },
   build: {
     sourcemap: true,
@@ -20,5 +19,8 @@ export default defineConfig({
         warn(warning);
       }
     }
+  },
+  server: {
+    port: 3000
   }
 });
